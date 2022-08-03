@@ -32,6 +32,13 @@ syntax for public struct fields, enum tags and other constructs, like so:
 
     zdoc std.foo.bar .somefield
 
+for some types, zig may log an error reading something like,
+"renderingExpression for ... unimplemented". that's because i commented out
+a big chunk of rendering cases in src/output.zig which was adapted from
+std/zig/render.zig, to suppress definitions output.
+
+if you see an error like this, please create an issue or send a code change.
+
 ---
 
 to contribute, create a pull request or send a patch with
