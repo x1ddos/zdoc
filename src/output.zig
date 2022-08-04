@@ -203,19 +203,19 @@ fn renderExpression(gpa: Allocator, ais: *Ais, tree: Ast, node: Ast.Node.Index, 
         //    try renderToken(ais, tree, defer_token, .space);
         //    return renderExpression(gpa, ais, tree, expr, space);
         //},
-        //.@"comptime", .@"nosuspend" => {
-        //    const comptime_token = main_tokens[node];
-        //    const block = datas[node].lhs;
-        //    try renderToken(ais, tree, comptime_token, .space);
-        //    return renderExpression(gpa, ais, tree, block, space);
-        //},
+        .@"comptime", .@"nosuspend" => {
+            const comptime_token = main_tokens[node];
+            const block = datas[node].lhs;
+            try renderToken(ais, tree, comptime_token, .space);
+            return renderExpression(gpa, ais, tree, block, space);
+        },
 
-        //.@"suspend" => {
-        //    const suspend_token = main_tokens[node];
-        //    const body = datas[node].lhs;
-        //    try renderToken(ais, tree, suspend_token, .space);
-        //    return renderExpression(gpa, ais, tree, body, space);
-        //},
+        .@"suspend" => {
+            const suspend_token = main_tokens[node];
+            const body = datas[node].lhs;
+            try renderToken(ais, tree, suspend_token, .space);
+            return renderExpression(gpa, ais, tree, body, space);
+        },
 
         //.@"catch" => {
         //    const main_token = main_tokens[node];
@@ -431,11 +431,11 @@ fn renderExpression(gpa: Allocator, ais: *Ais, tree: Ast, node: Ast.Node.Index, 
             return renderToken(ais, tree, main_tokens[node], space);
         },
 
-        //.unwrap_optional => {
-        //    try renderExpression(gpa, ais, tree, datas[node].lhs, .none);
-        //    try renderToken(ais, tree, main_tokens[node], .none);
-        //    return renderToken(ais, tree, datas[node].rhs, space);
-        //},
+        .unwrap_optional => {
+            try renderExpression(gpa, ais, tree, datas[node].lhs, .none);
+            try renderToken(ais, tree, main_tokens[node], .none);
+            return renderToken(ais, tree, datas[node].rhs, space);
+        },
 
         .@"break" => {
             const main_token = main_tokens[node];
