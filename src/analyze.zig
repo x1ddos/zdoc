@@ -7,7 +7,8 @@ const Ast = std.zig.Ast;
 ///
 /// results are printed using ais.
 pub fn search(alloc: std.mem.Allocator, ais: *output.Ais, source: [:0]const u8, query: ?[]const u8) !void {
-    const tree = try std.zig.parse(alloc, source);
+    var tree = try std.zig.parse(alloc, source);
+    defer tree.deinit(alloc);
     for (tree.rootDecls()) |decl| {
         if (!isPublic(tree, decl)) {
             continue;
