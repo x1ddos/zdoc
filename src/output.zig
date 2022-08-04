@@ -583,33 +583,33 @@ fn renderExpression(gpa: Allocator, ais: *Ais, tree: Ast, node: Ast.Node.Index, 
             }
         },
 
-        //.@"switch",
-        //.switch_comma,
-        //=> {
-        //    const switch_token = main_tokens[node];
-        //    const condition = datas[node].lhs;
-        //    const extra = tree.extraData(datas[node].rhs, Ast.Node.SubRange);
-        //    const cases = tree.extra_data[extra.start..extra.end];
-        //    const rparen = tree.lastToken(condition) + 1;
+        .@"switch",
+        .switch_comma,
+        => {
+            const switch_token = main_tokens[node];
+            const condition = datas[node].lhs;
+            const extra = tree.extraData(datas[node].rhs, Ast.Node.SubRange);
+            const cases = tree.extra_data[extra.start..extra.end];
+            const rparen = tree.lastToken(condition) + 1;
 
-        //    try renderToken(ais, tree, switch_token, .space); // switch keyword
-        //    try renderToken(ais, tree, switch_token + 1, .none); // lparen
-        //    try renderExpression(gpa, ais, tree, condition, .none); // condtion expression
-        //    try renderToken(ais, tree, rparen, .space); // rparen
+            try renderToken(ais, tree, switch_token, .space); // switch keyword
+            try renderToken(ais, tree, switch_token + 1, .none); // lparen
+            try renderExpression(gpa, ais, tree, condition, .none); // condtion expression
+            try renderToken(ais, tree, rparen, .space); // rparen
 
-        //    ais.pushIndentNextLine();
-        //    if (cases.len == 0) {
-        //        try renderToken(ais, tree, rparen + 1, .none); // lbrace
-        //    } else {
-        //        try renderToken(ais, tree, rparen + 1, .newline); // lbrace
-        //        try renderExpressions(gpa, ais, tree, cases, .comma);
-        //    }
-        //    ais.popIndent();
-        //    return renderToken(ais, tree, tree.lastToken(node), space); // rbrace
-        //},
+            ais.pushIndentNextLine();
+            if (cases.len == 0) {
+                try renderToken(ais, tree, rparen + 1, .none); // lbrace
+            } else {
+                try renderToken(ais, tree, rparen + 1, .newline); // lbrace
+                try renderExpressions(gpa, ais, tree, cases, .comma);
+            }
+            ais.popIndent();
+            return renderToken(ais, tree, tree.lastToken(node), space); // rbrace
+        },
 
-        //.switch_case_one => return renderSwitchCase(gpa, ais, tree, tree.switchCaseOne(node), space),
-        //.switch_case => return renderSwitchCase(gpa, ais, tree, tree.switchCase(node), space),
+        .switch_case_one => return renderSwitchCase(gpa, ais, tree, tree.switchCaseOne(node), space),
+        .switch_case => return renderSwitchCase(gpa, ais, tree, tree.switchCase(node), space),
 
         .while_simple => return renderWhile(gpa, ais, tree, tree.whileSimple(node), space),
         .while_cont => return renderWhile(gpa, ais, tree, tree.whileCont(node), space),
@@ -1423,61 +1423,60 @@ fn renderFnProto(gpa: Allocator, ais: *Ais, tree: Ast, fn_proto: Ast.full.FnProt
     return renderExpression(gpa, ais, tree, fn_proto.ast.return_type, space);
 }
 
-// unused
-//fn renderSwitchCase(
-//    gpa: Allocator,
-//    ais: *Ais,
-//    tree: Ast,
-//    switch_case: Ast.full.SwitchCase,
-//    space: Space,
-//) Error!void {
-//    const node_tags = tree.nodes.items(.tag);
-//    const token_tags = tree.tokens.items(.tag);
-//    const trailing_comma = token_tags[switch_case.ast.arrow_token - 1] == .comma;
-//    const has_comment_before_arrow = blk: {
-//        if (switch_case.ast.values.len == 0) break :blk false;
-//        break :blk hasComment(tree, tree.firstToken(switch_case.ast.values[0]), switch_case.ast.arrow_token);
-//    };
-//
-//    // Render everything before the arrow
-//    if (switch_case.ast.values.len == 0) {
-//        try renderToken(ais, tree, switch_case.ast.arrow_token - 1, .space); // else keyword
-//    } else if (switch_case.ast.values.len == 1 and !has_comment_before_arrow) {
-//        // render on one line and drop the trailing comma if any
-//        try renderExpression(gpa, ais, tree, switch_case.ast.values[0], .space);
-//    } else if (trailing_comma or has_comment_before_arrow) {
-//        // Render each value on a new line
-//        try renderExpressions(gpa, ais, tree, switch_case.ast.values, .comma);
-//    } else {
-//        // Render on one line
-//        for (switch_case.ast.values) |value_expr| {
-//            try renderExpression(gpa, ais, tree, value_expr, .comma_space);
-//        }
-//    }
-//
-//    // Render the arrow and everything after it
-//    const pre_target_space = if (node_tags[switch_case.ast.target_expr] == .multiline_string_literal)
-//        // Newline gets inserted when rendering the target expr.
-//        Space.none
-//    else
-//        Space.space;
-//    const after_arrow_space: Space = if (switch_case.payload_token == null) pre_target_space else .space;
-//    try renderToken(ais, tree, switch_case.ast.arrow_token, after_arrow_space);
-//
-//    if (switch_case.payload_token) |payload_token| {
-//        try renderToken(ais, tree, payload_token - 1, .none); // pipe
-//        if (token_tags[payload_token] == .asterisk) {
-//            try renderToken(ais, tree, payload_token, .none); // asterisk
-//            try renderToken(ais, tree, payload_token + 1, .none); // identifier
-//            try renderToken(ais, tree, payload_token + 2, pre_target_space); // pipe
-//        } else {
-//            try renderToken(ais, tree, payload_token, .none); // identifier
-//            try renderToken(ais, tree, payload_token + 1, pre_target_space); // pipe
-//        }
-//    }
-//
-//    try renderExpression(gpa, ais, tree, switch_case.ast.target_expr, space);
-//}
+fn renderSwitchCase(
+    gpa: Allocator,
+    ais: *Ais,
+    tree: Ast,
+    switch_case: Ast.full.SwitchCase,
+    space: Space,
+) !void {
+    const node_tags = tree.nodes.items(.tag);
+    const token_tags = tree.tokens.items(.tag);
+    const trailing_comma = token_tags[switch_case.ast.arrow_token - 1] == .comma;
+    const has_comment_before_arrow = blk: {
+        if (switch_case.ast.values.len == 0) break :blk false;
+        break :blk hasComment(tree, tree.firstToken(switch_case.ast.values[0]), switch_case.ast.arrow_token);
+    };
+
+    // Render everything before the arrow
+    if (switch_case.ast.values.len == 0) {
+        try renderToken(ais, tree, switch_case.ast.arrow_token - 1, .space); // else keyword
+    } else if (switch_case.ast.values.len == 1 and !has_comment_before_arrow) {
+        // render on one line and drop the trailing comma if any
+        try renderExpression(gpa, ais, tree, switch_case.ast.values[0], .space);
+    } else if (trailing_comma or has_comment_before_arrow) {
+        // Render each value on a new line
+        try renderExpressions(gpa, ais, tree, switch_case.ast.values, .comma);
+    } else {
+        // Render on one line
+        for (switch_case.ast.values) |value_expr| {
+            try renderExpression(gpa, ais, tree, value_expr, .comma_space);
+        }
+    }
+
+    // Render the arrow and everything after it
+    const pre_target_space = if (node_tags[switch_case.ast.target_expr] == .multiline_string_literal)
+        // Newline gets inserted when rendering the target expr.
+        Space.none
+    else
+        Space.space;
+    const after_arrow_space: Space = if (switch_case.payload_token == null) pre_target_space else .space;
+    try renderToken(ais, tree, switch_case.ast.arrow_token, after_arrow_space);
+
+    if (switch_case.payload_token) |payload_token| {
+        try renderToken(ais, tree, payload_token - 1, .none); // pipe
+        if (token_tags[payload_token] == .asterisk) {
+            try renderToken(ais, tree, payload_token, .none); // asterisk
+            try renderToken(ais, tree, payload_token + 1, .none); // identifier
+            try renderToken(ais, tree, payload_token + 2, pre_target_space); // pipe
+        } else {
+            try renderToken(ais, tree, payload_token, .none); // identifier
+            try renderToken(ais, tree, payload_token + 1, pre_target_space); // pipe
+        }
+    }
+
+    try renderExpression(gpa, ais, tree, switch_case.ast.target_expr, space);
+}
 
 fn renderBlock(
     gpa: Allocator,
