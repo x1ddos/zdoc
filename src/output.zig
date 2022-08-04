@@ -69,6 +69,18 @@ pub fn renderPubMember(gpa: Allocator, ais: *Ais, tree: Ast, decl: Ast.Node.Inde
             try renderExpression(gpa, ais, tree, fn_proto, .newline);
         },
 
+        .@"usingnamespace" => {
+            const mtok = main_tokens[decl];
+            // todo: move this to analyze.isPublic?
+            if (mtok > 0 and token_tags[mtok - 1] == .keyword_pub) {
+                try renderToken(ais, tree, mtok - 1, .space); // pub
+                try renderToken(ais, tree, mtok, .space); // usingnamespace
+                const expr = datas[decl].lhs;
+                try renderExpression(gpa, ais, tree, expr, .none);
+                return renderToken(ais, tree, tree.lastToken(expr) + 1, space); // ;
+            }
+        },
+
         //.global_var_decl => return renderVarDecl(gpa, ais, tree, tree.globalVarDecl(decl)),
         .simple_var_decl => {
             if (analyze.isPublic(tree, decl)) {
