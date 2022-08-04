@@ -49,15 +49,6 @@ pub fn isPublic(tree: Ast, decl: Ast.Node.Index) bool {
 /// reports whether the given name matches decl identifier, case-insensitive.
 pub fn identifierMatch(tree: Ast, decl: Ast.Node.Index, name: []const u8) bool {
     return if (identifier(tree, decl)) |ident| std.ascii.eqlIgnoreCase(name, ident) else false;
-    //std.debug.print("identifierMatch? name={s} ", .{name});
-    //if (identifier(tree, decl)) |ident| {
-    //    const res = std.ascii.eqlIgnoreCase(name, ident);
-    //    std.debug.print("ident={s} res={}\n", .{ident, res});
-    //    return res;
-    //} else {
-    //    std.debug.print("ident is null\n", .{});
-    //    return false;
-    //}
 }
 
 /// identifier returns node's identifier, if any.
@@ -99,4 +90,54 @@ fn identifier(tree: Ast, node: Ast.Node.Index) ?[]const u8 {
         else => return null,
     }
     return null;
+}
+
+test "identifier matches" {
+    const alloc = std.testing.allocator;
+    const print = std.debug.print;
+
+    const src =
+        \\const foo: u32 = 1;
+        \\pub const bar: i32 = 2;
+        \\pub const baz = struct { z: u32 };
+        \\fn quix() void { }
+    ;
+    const tt = [_]struct { name: []const u8 }{
+        .{ .name = "foo" },
+        .{ .name = "bar" },
+        .{ .name = "baz" },
+        .{ .name = "quix" },
+    };
+    var tree = try std.zig.parse(alloc, src);
+    defer tree.deinit(alloc);
+    for (tree.rootDecls()) |decl, i| {
+        const tc = tt[i];
+        if (!identifierMatch(tree, decl, tc.name)) {
+            const id = identifier(tree, decl);
+            print("{d}: identifierMatch({s}): false; identifier({d}): {?s}\n", .{ i, tc.name, decl, id });
+            return error.NoMatch;
+        }
+    }
+}
+
+test "no identifier match" {
+    const alloc = std.testing.allocator;
+    const print = std.debug.print;
+
+    const src =
+        \\const foo: u32 = 1;
+        \\pub const bar: i32 = 2;
+        \\pub const baz = struct { z: u32 };
+        \\fn quix() void { }
+    ;
+    const z = "z";
+    var tree = try std.zig.parse(alloc, src);
+    defer tree.deinit(alloc);
+    for (tree.rootDecls()) |decl, i| {
+        if (identifierMatch(tree, decl, z)) {
+            const id = identifier(tree, decl);
+            print("{d}: identifierMatch({s}): true; identifier({d}): {?s}\n", .{ i, z, decl, id });
+            return error.Match;
+        }
+    }
 }
