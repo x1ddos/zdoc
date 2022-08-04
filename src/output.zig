@@ -78,8 +78,8 @@ pub fn renderPubMember(gpa: Allocator, ais: *Ais, tree: Ast, decl: Ast.Node.Inde
         .container_field_init => {
             try renderContainerField(gpa, ais, tree, tree.containerFieldInit(decl), space);
         },
-        //.container_field_align => return renderContainerField(gpa, ais, tree, tree.containerFieldAlign(decl), space),
-        //.container_field => return renderContainerField(gpa, ais, tree, tree.containerField(decl), space),
+        .container_field_align => return renderContainerField(gpa, ais, tree, tree.containerFieldAlign(decl), space),
+        .container_field => return renderContainerField(gpa, ais, tree, tree.containerField(decl), space),
 
         .test_decl => return,
 
