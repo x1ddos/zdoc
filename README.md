@@ -44,7 +44,11 @@ if you see an error like this, please create an issue or send a code change.
 to contribute, create a pull request or send a patch with
 [git send-mail](https://git-scm.com/docs/git-send-email) to alex-dot-cloudware.io.
 
-before sending a change, please make sure all code is formatted. check with:
+before sending a change, please make sure tests pass:
+
+    zig build test
+
+and all code is formatted:
 
     zig fmt --check .
 
