@@ -176,3 +176,8 @@ fn zigStdPath(alloc: std.mem.Allocator) ![]const u8 {
     defer std.json.parseFree(Env, jenv, opt);
     return alloc.dupe(u8, jenv.std_dir);
 }
+
+test {
+    // run tests found in all @import'ed files.
+    std.testing.refAllDecls(@This());
+}

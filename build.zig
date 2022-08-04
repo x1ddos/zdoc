@@ -17,7 +17,12 @@ pub fn build(b: *std.build.Builder) void {
     if (b.args) |args| {
         run_cmd.addArgs(args);
     }
-
     const run_step = b.step("run", "run the executable");
     run_step.dependOn(&run_cmd.step);
+
+    const exe_tests = b.addTest("src/main.zig");
+    exe_tests.setTarget(target);
+    exe_tests.setBuildMode(bmode);
+    const test_step = b.step("test", "run tests");
+    test_step.dependOn(&exe_tests.step);
 }
