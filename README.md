@@ -32,19 +32,6 @@ list all expectXxx functions from the testing module:
 
 as a special case, if the source is exactly `std` and no such file
 or directory exists, zdoc searches across the whole zig std lib.
----
-
-that's about all it can do for now. a future version may include search
-syntax for public struct fields, enum tags and other constructs, like so:
-
-    zdoc std.foo.bar .somefield
-
-for some types, zig may log an error reading something like,
-"renderingExpression for ... unimplemented". that's because i commented out
-a big chunk of rendering cases in src/output.zig which was adapted from
-std/zig/render.zig, to suppress definitions output.
-
-if you see an error like this, please create an issue or send a code change.
 
 ---
 
