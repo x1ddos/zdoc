@@ -2651,16 +2651,42 @@ fn AutoIndentingStream(comptime UnderlyingWriter: type) type {
         /// not used until the next line
         indent_next_line: usize = 0,
 
+        /// indicates whether at least one search_file has ever been printed out.
+        first_search_file: bool = true,
+        /// the name of the file currently under search.
+        /// the ield is reset to null once printed out.
+        /// use setSearchFile to set a new name before starting a search.
+        search_file: ?[]const u8 = null,
+
         pub fn writer(self: *Self) Writer {
             return .{ .context = self };
         }
 
         pub fn write(self: *Self, bytes: []const u8) WriteError!usize {
+            if (self.search_file) |name| {
+                if (!self.first_search_file) {
+                    try self.insertNewline();
+                }
+                const n = @minimum(name.len, 60);
+                const prefix = if (name.len > n) "..." else "";
+                const truncname = name[name.len - n .. name.len];
+                try std.fmt.format(self.underlying_writer, "//--- file: {s}{s} ---\n", .{ prefix, truncname });
+                self.search_file = null;
+                self.first_search_file = false;
+            }
+
             if (bytes.len == 0)
                 return @as(usize, 0);
 
             try self.applyIndent();
             return self.writeNoIndent(bytes);
+        }
+
+        /// setSearchFile records the name to print out before the first self.write
+        /// occurs. the name is always printed in between newlines.
+        pub fn setSearchFile(self: *Self, name: []const u8) void {
+            self.search_file = name;
+            self.resetLine();
         }
 
         // Change the indent delta without changing the final indentation level

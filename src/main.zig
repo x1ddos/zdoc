@@ -63,6 +63,10 @@ pub fn main() !void {
     };
     const list = try expandSourcePath(alloc, zsource);
     for (list.items) |src| {
+        // no need to print the filename under search if there's only one.
+        if (list.items.len > 1) {
+            ais.setSearchFile(src);
+        }
         // todo: consider replacing arena with something else to dealloc already
         // analyzed files early and possibly reduce memory footprint.
         const contents = try readFile(alloc, src);
