@@ -2,7 +2,7 @@
 
 usage:
 
-    zdoc [-s] [source] <identifier>
+    zdoc [-s] <source> [identifier]
 
 the program searches source code for matching public identifiers,
 printing found types and their doc comments to stdout.

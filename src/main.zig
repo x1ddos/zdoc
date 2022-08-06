@@ -72,7 +72,7 @@ pub fn main() !void {
 
 fn usage(prog: []const u8) !void {
     try stderr.print(
-        \\usage: {s} [-s] [source] <identifier>
+        \\usage: {s} [-s] <source> [identifier]
         \\
         \\the program searches source code for matching public identifiers,
         \\printing found types and their doc comments to stdout.
