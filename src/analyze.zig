@@ -24,7 +24,7 @@ pub fn search(alloc: std.mem.Allocator, ais: *output.Ais, source: [:0]const u8, 
             continue;
         }
         if (insert_newline) {
-            try ais.insertNewline();
+            try output.renderExtraNewline(ais, tree, decl);
         }
         try output.renderPubMember(alloc, ais, tree, decl, .newline);
         insert_newline = true;

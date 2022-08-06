@@ -76,23 +76,34 @@ pub fn renderPubMember(gpa: Allocator, ais: *Ais, tree: Ast, decl: Ast.Node.Inde
             const mtok = main_tokens[decl];
             // todo: move this to analyze.isPublic?
             if (mtok > 0 and token_tags[mtok - 1] == .keyword_pub) {
+                try renderDocComments(ais, tree, tree.firstToken(decl));
                 try renderToken(ais, tree, mtok - 1, .space); // pub
                 try renderToken(ais, tree, mtok, .space); // usingnamespace
                 const expr = datas[decl].lhs;
                 try renderExpression(gpa, ais, tree, expr, .none);
-                return renderToken(ais, tree, tree.lastToken(expr) + 1, space); // ;
+                try renderToken(ais, tree, tree.lastToken(expr) + 1, space); // ;
             }
         },
 
         //.global_var_decl => return renderVarDecl(gpa, ais, tree, tree.globalVarDecl(decl)),
         .simple_var_decl => {
             if (analyze.isPublic(tree, decl)) {
+                try renderDocComments(ais, tree, tree.firstToken(decl));
                 try renderVarDecl(gpa, ais, tree, tree.simpleVarDecl(decl));
             }
         },
-        .container_field_init => return renderContainerField(gpa, ais, tree, tree.containerFieldInit(decl), space),
-        .container_field_align => return renderContainerField(gpa, ais, tree, tree.containerFieldAlign(decl), space),
-        .container_field => return renderContainerField(gpa, ais, tree, tree.containerField(decl), space),
+        .container_field_init => {
+            try renderDocComments(ais, tree, tree.firstToken(decl));
+            try renderContainerField(gpa, ais, tree, tree.containerFieldInit(decl), space);
+        },
+        .container_field_align => {
+            try renderDocComments(ais, tree, tree.firstToken(decl));
+            try renderContainerField(gpa, ais, tree, tree.containerFieldAlign(decl), space);
+        },
+        .container_field => {
+            try renderDocComments(ais, tree, tree.firstToken(decl));
+            try renderContainerField(gpa, ais, tree, tree.containerField(decl), space);
+        },
 
         .test_decl => return,
 
@@ -2381,7 +2392,7 @@ fn renderComments(ais: *Ais, tree: Ast, start: usize, end: usize) anyerror!bool 
     return index != start;
 }
 
-fn renderExtraNewline(ais: *Ais, tree: Ast, node: Ast.Node.Index) anyerror!void {
+pub fn renderExtraNewline(ais: *Ais, tree: Ast, node: Ast.Node.Index) anyerror!void {
     return renderExtraNewlineToken(ais, tree, tree.firstToken(node));
 }
 
