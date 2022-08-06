@@ -79,15 +79,7 @@ fn usage(prog: []const u8) !void {
         \\the search is case-insensitive and non-exhaustive.
         \\if -s option is specified, any identifier substring matches.
         \\
-        \\for example, look up format function in std lib:
-        \\
-        \\    zdoc std.fmt format
-        \\
-        \\print fmt's top level doc comments:
-        \\
-        \\    zdoc std.fmt
-        \\
-        \\look up "hello" identifier in a project file:
+        \\for example, look up "hello" identifier in a project file:
         \\
         \\    zdoc ./src/main.zig hello
         \\
@@ -95,6 +87,21 @@ fn usage(prog: []const u8) !void {
         \\recursively and following symlinks:
         \\
         \\    zdoc ./src hello
+        \\
+        \\if the source starts with "std.", the dot delimiters are replaced
+        \\with filesystem path separator and "std." with the "std_dir" value
+        \\from "zig env" command output.
+        \\
+        \\for example, look up format function in std lib:
+        \\
+        \\    zdoc std.fmt format
+        \\
+        \\list all expectXxx functions from the testing module:
+        \\
+        \\    zdoc -s std.testing expect
+        \\
+        \\as a special case, if the source is exactly "std" and no such file
+        \\or directory exists, zdoc searches across the whole zig std lib.
         \\
     , .{prog});
 }
@@ -138,7 +145,17 @@ fn expandSourcePath(alloc: std.mem.Allocator, name: []const u8) !std.ArrayList([
 
     // otherwise, try a fileystem path
     var b: [std.fs.MAX_PATH_BYTES]u8 = undefined;
-    const realpath = try std.fs.realpath(name, &b);
+    const realpath = std.fs.realpath(name, &b) catch |err| {
+        // as a special case, if no such file or directory, and the original search
+        // location is exactly "std", assume it's zig std lib and try that instead.
+        // if this turns out to be inappropriate assumption in the future, consider
+        // adding a -nostd flag to zdoc cmd line.
+        if (err == error.FileNotFound and std.mem.eql(u8, name, "std")) {
+            const stdroot = try zigStdPath(alloc);
+            return expandSourcePath(alloc, stdroot);
+        }
+        return err;
+    };
     const stat = stat: {
         const file = try std.fs.openFileAbsolute(realpath, .{ .mode = .read_only });
         defer file.close();
