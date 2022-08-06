@@ -15,6 +15,9 @@ const Ast = std.zig.Ast;
 
 const log = std.log.scoped(.render);
 
+/// indent_delta is the commonly used space indentation size.
+pub const indent_delta = 4;
+
 /// Ais is writer type-independent AutoIndentingStream used by all renderXxx funcs.
 pub const Ais = AutoIndentingStream(TypeErasedWriter.Writer);
 
@@ -367,20 +370,20 @@ fn renderExpression(gpa: Allocator, ais: *Ais, tree: Ast, node: Ast.Node.Index, 
         .ptr_type => return renderPtrType(gpa, ais, tree, tree.ptrType(node), space),
         .ptr_type_bit_range => return renderPtrType(gpa, ais, tree, tree.ptrTypeBitRange(node), space),
 
-        //.array_init_one, .array_init_one_comma => {
-        //    var elements: [1]Ast.Node.Index = undefined;
-        //    return renderArrayInit(gpa, ais, tree, tree.arrayInitOne(&elements, node), space);
-        //},
-        //.array_init_dot_two, .array_init_dot_two_comma => {
-        //    var elements: [2]Ast.Node.Index = undefined;
-        //    return renderArrayInit(gpa, ais, tree, tree.arrayInitDotTwo(&elements, node), space);
-        //},
-        //.array_init_dot,
-        //.array_init_dot_comma,
-        //=> return renderArrayInit(gpa, ais, tree, tree.arrayInitDot(node), space),
-        //.array_init,
-        //.array_init_comma,
-        //=> return renderArrayInit(gpa, ais, tree, tree.arrayInit(node), space),
+        .array_init_one, .array_init_one_comma => {
+            var elements: [1]Ast.Node.Index = undefined;
+            return renderArrayInit(gpa, ais, tree, tree.arrayInitOne(&elements, node), space);
+        },
+        .array_init_dot_two, .array_init_dot_two_comma => {
+            var elements: [2]Ast.Node.Index = undefined;
+            return renderArrayInit(gpa, ais, tree, tree.arrayInitDotTwo(&elements, node), space);
+        },
+        .array_init_dot,
+        .array_init_dot_comma,
+        => return renderArrayInit(gpa, ais, tree, tree.arrayInitDot(node), space),
+        .array_init,
+        .array_init_comma,
+        => return renderArrayInit(gpa, ais, tree, tree.arrayInit(node), space),
 
         .struct_init_one, .struct_init_one_comma => {
             var fields: [1]Ast.Node.Index = undefined;
@@ -1589,225 +1592,224 @@ fn renderStructInit(
     return renderToken(ais, tree, rbrace, space);
 }
 
-// unused
-//fn renderArrayInit(
-//    gpa: Allocator,
-//    ais: *Ais,
-//    tree: Ast,
-//    array_init: Ast.full.ArrayInit,
-//    space: Space,
-//) Error!void {
-//    const token_tags = tree.tokens.items(.tag);
-//
-//    if (array_init.ast.type_expr == 0) {
-//        try renderToken(ais, tree, array_init.ast.lbrace - 1, .none); // .
-//    } else {
-//        try renderExpression(gpa, ais, tree, array_init.ast.type_expr, .none); // T
-//    }
-//
-//    if (array_init.ast.elements.len == 0) {
-//        ais.pushIndentNextLine();
-//        try renderToken(ais, tree, array_init.ast.lbrace, .none); // lbrace
-//        ais.popIndent();
-//        return renderToken(ais, tree, array_init.ast.lbrace + 1, space); // rbrace
-//    }
-//
-//    const last_elem = array_init.ast.elements[array_init.ast.elements.len - 1];
-//    const last_elem_token = tree.lastToken(last_elem);
-//    const trailing_comma = token_tags[last_elem_token + 1] == .comma;
-//    const rbrace = if (trailing_comma) last_elem_token + 2 else last_elem_token + 1;
-//    assert(token_tags[rbrace] == .r_brace);
-//
-//    if (array_init.ast.elements.len == 1) {
-//        const only_elem = array_init.ast.elements[0];
-//        const first_token = tree.firstToken(only_elem);
-//        if (token_tags[first_token] != .multiline_string_literal_line and
-//            !anythingBetween(tree, last_elem_token, rbrace))
-//        {
-//            try renderToken(ais, tree, array_init.ast.lbrace, .none);
-//            try renderExpression(gpa, ais, tree, only_elem, .none);
-//            return renderToken(ais, tree, rbrace, space);
-//        }
-//    }
-//
-//    const contains_comment = hasComment(tree, array_init.ast.lbrace, rbrace);
-//    const contains_multiline_string = hasMultilineString(tree, array_init.ast.lbrace, rbrace);
-//
-//    if (!trailing_comma and !contains_comment and !contains_multiline_string) {
-//        // Render all on one line, no trailing comma.
-//        if (array_init.ast.elements.len == 1) {
-//            // If there is only one element, we don't use spaces
-//            try renderToken(ais, tree, array_init.ast.lbrace, .none);
-//            try renderExpression(gpa, ais, tree, array_init.ast.elements[0], .none);
-//        } else {
-//            try renderToken(ais, tree, array_init.ast.lbrace, .space);
-//            for (array_init.ast.elements) |elem| {
-//                try renderExpression(gpa, ais, tree, elem, .comma_space);
-//            }
-//        }
-//        return renderToken(ais, tree, last_elem_token + 1, space); // rbrace
-//    }
-//
-//    ais.pushIndentNextLine();
-//    try renderToken(ais, tree, array_init.ast.lbrace, .newline);
-//
-//    var expr_index: usize = 0;
-//    while (true) {
-//        const row_size = rowSize(tree, array_init.ast.elements[expr_index..], rbrace);
-//        const row_exprs = array_init.ast.elements[expr_index..];
-//        // A place to store the width of each expression and its column's maximum
-//        const widths = try gpa.alloc(usize, row_exprs.len + row_size);
-//        defer gpa.free(widths);
-//        mem.set(usize, widths, 0);
-//
-//        const expr_newlines = try gpa.alloc(bool, row_exprs.len);
-//        defer gpa.free(expr_newlines);
-//        mem.set(bool, expr_newlines, false);
-//
-//        const expr_widths = widths[0..row_exprs.len];
-//        const column_widths = widths[row_exprs.len..];
-//
-//        // Find next row with trailing comment (if any) to end the current section.
-//        const section_end = sec_end: {
-//            var this_line_first_expr: usize = 0;
-//            var this_line_size = rowSize(tree, row_exprs, rbrace);
-//            for (row_exprs) |expr, i| {
-//                // Ignore comment on first line of this section.
-//                if (i == 0) continue;
-//                const expr_last_token = tree.lastToken(expr);
-//                if (tree.tokensOnSameLine(tree.firstToken(row_exprs[0]), expr_last_token))
-//                    continue;
-//                // Track start of line containing comment.
-//                if (!tree.tokensOnSameLine(tree.firstToken(row_exprs[this_line_first_expr]), expr_last_token)) {
-//                    this_line_first_expr = i;
-//                    this_line_size = rowSize(tree, row_exprs[this_line_first_expr..], rbrace);
-//                }
-//
-//                const maybe_comma = expr_last_token + 1;
-//                if (token_tags[maybe_comma] == .comma) {
-//                    if (hasSameLineComment(tree, maybe_comma))
-//                        break :sec_end i - this_line_size + 1;
-//                }
-//            }
-//            break :sec_end row_exprs.len;
-//        };
-//        expr_index += section_end;
-//
-//        const section_exprs = row_exprs[0..section_end];
-//
-//        var sub_expr_buffer = std.ArrayList(u8).init(gpa);
-//        defer sub_expr_buffer.deinit();
-//
-//        const sub_expr_buffer_starts = try gpa.alloc(usize, section_exprs.len + 1);
-//        defer gpa.free(sub_expr_buffer_starts);
-//
-//        var auto_indenting_stream = Ais{
-//            .indent_delta = indent_delta,
-//            .underlying_writer = sub_expr_buffer.writer(),
-//        };
-//
-//        // Calculate size of columns in current section
-//        var column_counter: usize = 0;
-//        var single_line = true;
-//        var contains_newline = false;
-//        for (section_exprs) |expr, i| {
-//            const start = sub_expr_buffer.items.len;
-//            sub_expr_buffer_starts[i] = start;
-//
-//            if (i + 1 < section_exprs.len) {
-//                try renderExpression(gpa, &auto_indenting_stream, tree, expr, .none);
-//                const width = sub_expr_buffer.items.len - start;
-//                const this_contains_newline = mem.indexOfScalar(u8, sub_expr_buffer.items[start..], '\n') != null;
-//                contains_newline = contains_newline or this_contains_newline;
-//                expr_widths[i] = width;
-//                expr_newlines[i] = this_contains_newline;
-//
-//                if (!this_contains_newline) {
-//                    const column = column_counter % row_size;
-//                    column_widths[column] = std.math.max(column_widths[column], width);
-//
-//                    const expr_last_token = tree.lastToken(expr) + 1;
-//                    const next_expr = section_exprs[i + 1];
-//                    column_counter += 1;
-//                    if (!tree.tokensOnSameLine(expr_last_token, tree.firstToken(next_expr))) single_line = false;
-//                } else {
-//                    single_line = false;
-//                    column_counter = 0;
-//                }
-//            } else {
-//                try renderExpression(gpa, &auto_indenting_stream, tree, expr, .comma);
-//                const width = sub_expr_buffer.items.len - start - 2;
-//                const this_contains_newline = mem.indexOfScalar(u8, sub_expr_buffer.items[start .. sub_expr_buffer.items.len - 1], '\n') != null;
-//                contains_newline = contains_newline or this_contains_newline;
-//                expr_widths[i] = width;
-//                expr_newlines[i] = contains_newline;
-//
-//                if (!contains_newline) {
-//                    const column = column_counter % row_size;
-//                    column_widths[column] = std.math.max(column_widths[column], width);
-//                }
-//            }
-//        }
-//        sub_expr_buffer_starts[section_exprs.len] = sub_expr_buffer.items.len;
-//
-//        // Render exprs in current section.
-//        column_counter = 0;
-//        for (section_exprs) |expr, i| {
-//            const start = sub_expr_buffer_starts[i];
-//            const end = sub_expr_buffer_starts[i + 1];
-//            const expr_text = sub_expr_buffer.items[start..end];
-//            if (!expr_newlines[i]) {
-//                try ais.writer().writeAll(expr_text);
-//            } else {
-//                var by_line = std.mem.split(u8, expr_text, "\n");
-//                var last_line_was_empty = false;
-//                try ais.writer().writeAll(by_line.first());
-//                while (by_line.next()) |line| {
-//                    if (std.mem.startsWith(u8, line, "//") and last_line_was_empty) {
-//                        try ais.insertNewline();
-//                    } else {
-//                        try ais.maybeInsertNewline();
-//                    }
-//                    last_line_was_empty = (line.len == 0);
-//                    try ais.writer().writeAll(line);
-//                }
-//            }
-//
-//            if (i + 1 < section_exprs.len) {
-//                const next_expr = section_exprs[i + 1];
-//                const comma = tree.lastToken(expr) + 1;
-//
-//                if (column_counter != row_size - 1) {
-//                    if (!expr_newlines[i] and !expr_newlines[i + 1]) {
-//                        // Neither the current or next expression is multiline
-//                        try renderToken(ais, tree, comma, .space); // ,
-//                        assert(column_widths[column_counter % row_size] >= expr_widths[i]);
-//                        const padding = column_widths[column_counter % row_size] - expr_widths[i];
-//                        try ais.writer().writeByteNTimes(' ', padding);
-//
-//                        column_counter += 1;
-//                        continue;
-//                    }
-//                }
-//
-//                if (single_line and row_size != 1) {
-//                    try renderToken(ais, tree, comma, .space); // ,
-//                    continue;
-//                }
-//
-//                column_counter = 0;
-//                try renderToken(ais, tree, comma, .newline); // ,
-//                try renderExtraNewline(ais, tree, next_expr);
-//            }
-//        }
-//
-//        if (expr_index == array_init.ast.elements.len)
-//            break;
-//    }
-//
-//    ais.popIndent();
-//    return renderToken(ais, tree, rbrace, space); // rbrace
-//}
+fn renderArrayInit(
+    gpa: Allocator,
+    ais: *Ais,
+    tree: Ast,
+    array_init: Ast.full.ArrayInit,
+    space: Space,
+) !void {
+    const token_tags = tree.tokens.items(.tag);
+
+    if (array_init.ast.type_expr == 0) {
+        try renderToken(ais, tree, array_init.ast.lbrace - 1, .none); // .
+    } else {
+        try renderExpression(gpa, ais, tree, array_init.ast.type_expr, .none); // T
+    }
+
+    if (array_init.ast.elements.len == 0) {
+        ais.pushIndentNextLine();
+        try renderToken(ais, tree, array_init.ast.lbrace, .none); // lbrace
+        ais.popIndent();
+        return renderToken(ais, tree, array_init.ast.lbrace + 1, space); // rbrace
+    }
+
+    const last_elem = array_init.ast.elements[array_init.ast.elements.len - 1];
+    const last_elem_token = tree.lastToken(last_elem);
+    const trailing_comma = token_tags[last_elem_token + 1] == .comma;
+    const rbrace = if (trailing_comma) last_elem_token + 2 else last_elem_token + 1;
+    assert(token_tags[rbrace] == .r_brace);
+
+    if (array_init.ast.elements.len == 1) {
+        const only_elem = array_init.ast.elements[0];
+        const first_token = tree.firstToken(only_elem);
+        if (token_tags[first_token] != .multiline_string_literal_line and
+            !anythingBetween(tree, last_elem_token, rbrace))
+        {
+            try renderToken(ais, tree, array_init.ast.lbrace, .none);
+            try renderExpression(gpa, ais, tree, only_elem, .none);
+            return renderToken(ais, tree, rbrace, space);
+        }
+    }
+
+    const contains_comment = hasComment(tree, array_init.ast.lbrace, rbrace);
+    const contains_multiline_string = hasMultilineString(tree, array_init.ast.lbrace, rbrace);
+
+    if (!trailing_comma and !contains_comment and !contains_multiline_string) {
+        // Render all on one line, no trailing comma.
+        if (array_init.ast.elements.len == 1) {
+            // If there is only one element, we don't use spaces
+            try renderToken(ais, tree, array_init.ast.lbrace, .none);
+            try renderExpression(gpa, ais, tree, array_init.ast.elements[0], .none);
+        } else {
+            try renderToken(ais, tree, array_init.ast.lbrace, .space);
+            for (array_init.ast.elements) |elem| {
+                try renderExpression(gpa, ais, tree, elem, .comma_space);
+            }
+        }
+        return renderToken(ais, tree, last_elem_token + 1, space); // rbrace
+    }
+
+    ais.pushIndentNextLine();
+    try renderToken(ais, tree, array_init.ast.lbrace, .newline);
+
+    var expr_index: usize = 0;
+    while (true) {
+        const row_size = rowSize(tree, array_init.ast.elements[expr_index..], rbrace);
+        const row_exprs = array_init.ast.elements[expr_index..];
+        // A place to store the width of each expression and its column's maximum
+        const widths = try gpa.alloc(usize, row_exprs.len + row_size);
+        defer gpa.free(widths);
+        mem.set(usize, widths, 0);
+
+        const expr_newlines = try gpa.alloc(bool, row_exprs.len);
+        defer gpa.free(expr_newlines);
+        mem.set(bool, expr_newlines, false);
+
+        const expr_widths = widths[0..row_exprs.len];
+        const column_widths = widths[row_exprs.len..];
+
+        // Find next row with trailing comment (if any) to end the current section.
+        const section_end = sec_end: {
+            var this_line_first_expr: usize = 0;
+            var this_line_size = rowSize(tree, row_exprs, rbrace);
+            for (row_exprs) |expr, i| {
+                // Ignore comment on first line of this section.
+                if (i == 0) continue;
+                const expr_last_token = tree.lastToken(expr);
+                if (tree.tokensOnSameLine(tree.firstToken(row_exprs[0]), expr_last_token))
+                    continue;
+                // Track start of line containing comment.
+                if (!tree.tokensOnSameLine(tree.firstToken(row_exprs[this_line_first_expr]), expr_last_token)) {
+                    this_line_first_expr = i;
+                    this_line_size = rowSize(tree, row_exprs[this_line_first_expr..], rbrace);
+                }
+
+                const maybe_comma = expr_last_token + 1;
+                if (token_tags[maybe_comma] == .comma) {
+                    if (hasSameLineComment(tree, maybe_comma))
+                        break :sec_end i - this_line_size + 1;
+                }
+            }
+            break :sec_end row_exprs.len;
+        };
+        expr_index += section_end;
+
+        const section_exprs = row_exprs[0..section_end];
+
+        var sub_expr_buffer = std.ArrayList(u8).init(gpa);
+        defer sub_expr_buffer.deinit();
+
+        const sub_expr_buffer_starts = try gpa.alloc(usize, section_exprs.len + 1);
+        defer gpa.free(sub_expr_buffer_starts);
+
+        var auto_indenting_stream = Ais{
+            .indent_delta = indent_delta,
+            .underlying_writer = TypeErasedWriter.init(&sub_expr_buffer.writer()),
+        };
+
+        // Calculate size of columns in current section
+        var column_counter: usize = 0;
+        var single_line = true;
+        var contains_newline = false;
+        for (section_exprs) |expr, i| {
+            const start = sub_expr_buffer.items.len;
+            sub_expr_buffer_starts[i] = start;
+
+            if (i + 1 < section_exprs.len) {
+                try renderExpression(gpa, &auto_indenting_stream, tree, expr, .none);
+                const width = sub_expr_buffer.items.len - start;
+                const this_contains_newline = mem.indexOfScalar(u8, sub_expr_buffer.items[start..], '\n') != null;
+                contains_newline = contains_newline or this_contains_newline;
+                expr_widths[i] = width;
+                expr_newlines[i] = this_contains_newline;
+
+                if (!this_contains_newline) {
+                    const column = column_counter % row_size;
+                    column_widths[column] = std.math.max(column_widths[column], width);
+
+                    const expr_last_token = tree.lastToken(expr) + 1;
+                    const next_expr = section_exprs[i + 1];
+                    column_counter += 1;
+                    if (!tree.tokensOnSameLine(expr_last_token, tree.firstToken(next_expr))) single_line = false;
+                } else {
+                    single_line = false;
+                    column_counter = 0;
+                }
+            } else {
+                try renderExpression(gpa, &auto_indenting_stream, tree, expr, .comma);
+                const width = sub_expr_buffer.items.len - start - 2;
+                const this_contains_newline = mem.indexOfScalar(u8, sub_expr_buffer.items[start .. sub_expr_buffer.items.len - 1], '\n') != null;
+                contains_newline = contains_newline or this_contains_newline;
+                expr_widths[i] = width;
+                expr_newlines[i] = contains_newline;
+
+                if (!contains_newline) {
+                    const column = column_counter % row_size;
+                    column_widths[column] = std.math.max(column_widths[column], width);
+                }
+            }
+        }
+        sub_expr_buffer_starts[section_exprs.len] = sub_expr_buffer.items.len;
+
+        // Render exprs in current section.
+        column_counter = 0;
+        for (section_exprs) |expr, i| {
+            const start = sub_expr_buffer_starts[i];
+            const end = sub_expr_buffer_starts[i + 1];
+            const expr_text = sub_expr_buffer.items[start..end];
+            if (!expr_newlines[i]) {
+                try ais.writer().writeAll(expr_text);
+            } else {
+                var by_line = std.mem.split(u8, expr_text, "\n");
+                var last_line_was_empty = false;
+                try ais.writer().writeAll(by_line.first());
+                while (by_line.next()) |line| {
+                    if (std.mem.startsWith(u8, line, "//") and last_line_was_empty) {
+                        try ais.insertNewline();
+                    } else {
+                        try ais.maybeInsertNewline();
+                    }
+                    last_line_was_empty = (line.len == 0);
+                    try ais.writer().writeAll(line);
+                }
+            }
+
+            if (i + 1 < section_exprs.len) {
+                const next_expr = section_exprs[i + 1];
+                const comma = tree.lastToken(expr) + 1;
+
+                if (column_counter != row_size - 1) {
+                    if (!expr_newlines[i] and !expr_newlines[i + 1]) {
+                        // Neither the current or next expression is multiline
+                        try renderToken(ais, tree, comma, .space); // ,
+                        assert(column_widths[column_counter % row_size] >= expr_widths[i]);
+                        const padding = column_widths[column_counter % row_size] - expr_widths[i];
+                        try ais.writer().writeByteNTimes(' ', padding);
+
+                        column_counter += 1;
+                        continue;
+                    }
+                }
+
+                if (single_line and row_size != 1) {
+                    try renderToken(ais, tree, comma, .space); // ,
+                    continue;
+                }
+
+                column_counter = 0;
+                try renderToken(ais, tree, comma, .newline); // ,
+                try renderExtraNewline(ais, tree, next_expr);
+            }
+        }
+
+        if (expr_index == array_init.ast.elements.len)
+            break;
+    }
+
+    ais.popIndent();
+    return renderToken(ais, tree, rbrace, space); // rbrace
+}
 
 fn renderContainerDecl(
     gpa: Allocator,
@@ -2483,19 +2485,18 @@ fn hasSameLineComment(tree: Ast, token_index: Ast.TokenIndex) bool {
     return false;
 }
 
-// unused
 /// Returns `true` if and only if there are any tokens or line comments between
 /// start_token and end_token.
-//fn anythingBetween(tree: Ast, start_token: Ast.TokenIndex, end_token: Ast.TokenIndex) bool {
-//    if (start_token + 1 != end_token) return true;
-//    const token_starts = tree.tokens.items(.start);
-//    const between_source = tree.source[token_starts[start_token]..token_starts[start_token + 1]];
-//    for (between_source) |byte| switch (byte) {
-//        '/' => return true,
-//        else => continue,
-//    };
-//    return false;
-//}
+fn anythingBetween(tree: Ast, start_token: Ast.TokenIndex, end_token: Ast.TokenIndex) bool {
+    if (start_token + 1 != end_token) return true;
+    const token_starts = tree.tokens.items(.start);
+    const between_source = tree.source[token_starts[start_token]..token_starts[start_token + 1]];
+    for (between_source) |byte| switch (byte) {
+        '/' => return true,
+        else => continue,
+    };
+    return false;
+}
 
 fn writeFixingWhitespace(writer: TypeErasedWriter.Writer, slice: []const u8) anyerror!void {
     for (slice) |byte| switch (byte) {
@@ -2589,31 +2590,30 @@ fn nodeCausesSliceOpSpace(tag: Ast.Node.Tag) bool {
     };
 }
 
-// unused
 // Returns the number of nodes in `exprs` that are on the same line as `rtoken`.
-//fn rowSize(tree: Ast, exprs: []const Ast.Node.Index, rtoken: Ast.TokenIndex) usize {
-//    const token_tags = tree.tokens.items(.tag);
-//
-//    const first_token = tree.firstToken(exprs[0]);
-//    if (tree.tokensOnSameLine(first_token, rtoken)) {
-//        const maybe_comma = rtoken - 1;
-//        if (token_tags[maybe_comma] == .comma)
-//            return 1;
-//        return exprs.len; // no newlines
-//    }
-//
-//    var count: usize = 1;
-//    for (exprs) |expr, i| {
-//        if (i + 1 < exprs.len) {
-//            const expr_last_token = tree.lastToken(expr) + 1;
-//            if (!tree.tokensOnSameLine(expr_last_token, tree.firstToken(exprs[i + 1]))) return count;
-//            count += 1;
-//        } else {
-//            return count;
-//        }
-//    }
-//    unreachable;
-//}
+fn rowSize(tree: Ast, exprs: []const Ast.Node.Index, rtoken: Ast.TokenIndex) usize {
+    const token_tags = tree.tokens.items(.tag);
+
+    const first_token = tree.firstToken(exprs[0]);
+    if (tree.tokensOnSameLine(first_token, rtoken)) {
+        const maybe_comma = rtoken - 1;
+        if (token_tags[maybe_comma] == .comma)
+            return 1;
+        return exprs.len; // no newlines
+    }
+
+    var count: usize = 1;
+    for (exprs) |expr, i| {
+        if (i + 1 < exprs.len) {
+            const expr_last_token = tree.lastToken(expr) + 1;
+            if (!tree.tokensOnSameLine(expr_last_token, tree.firstToken(exprs[i + 1]))) return count;
+            count += 1;
+        } else {
+            return count;
+        }
+    }
+    unreachable;
+}
 
 /// Automatically inserts indentation of written data by keeping
 /// track of the current indentation level
