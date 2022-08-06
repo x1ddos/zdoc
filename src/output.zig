@@ -90,9 +90,7 @@ pub fn renderPubMember(gpa: Allocator, ais: *Ais, tree: Ast, decl: Ast.Node.Inde
                 try renderVarDecl(gpa, ais, tree, tree.simpleVarDecl(decl));
             }
         },
-        .container_field_init => {
-            try renderContainerField(gpa, ais, tree, tree.containerFieldInit(decl), space);
-        },
+        .container_field_init => return renderContainerField(gpa, ais, tree, tree.containerFieldInit(decl), space),
         .container_field_align => return renderContainerField(gpa, ais, tree, tree.containerFieldAlign(decl), space),
         .container_field => return renderContainerField(gpa, ais, tree, tree.containerField(decl), space),
 
@@ -2433,10 +2431,9 @@ fn renderDocComments(ais: *Ais, tree: Ast, end_token: Ast.TokenIndex) anyerror!v
         // Prevent accidental use of `renderDocComments` for a function argument doc comment
         assert(prev_token_tag != .l_paren);
 
-        // todo: restore original?
-        //if (prev_token_tag != .l_brace) {
-        //    try renderExtraNewlineToken(ais, tree, first_tok);
-        //}
+        if (prev_token_tag != .l_brace) {
+            try renderExtraNewlineToken(ais, tree, first_tok);
+        }
     }
 
     while (token_tags[tok] == .doc_comment) : (tok += 1) {

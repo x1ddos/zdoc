@@ -9,6 +9,7 @@ const Ast = std.zig.Ast;
 pub fn search(alloc: std.mem.Allocator, ais: *output.Ais, source: [:0]const u8, query: ?[]const u8) !void {
     var tree = try std.zig.parse(alloc, source);
     defer tree.deinit(alloc);
+    var insert_newline = false;
     for (tree.rootDecls()) |decl| {
         if (!isPublic(tree, decl)) {
             continue;
@@ -16,8 +17,11 @@ pub fn search(alloc: std.mem.Allocator, ais: *output.Ais, source: [:0]const u8, 
         if (query != null and !identifierMatch(tree, decl, query.?)) {
             continue;
         }
+        if (insert_newline) {
+            try ais.insertNewline();
+        }
         try output.renderPubMember(alloc, ais, tree, decl, .newline);
-        try ais.insertNewline();
+        insert_newline = true;
     }
 }
 
