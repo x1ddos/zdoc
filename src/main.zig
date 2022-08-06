@@ -18,10 +18,19 @@ pub fn main() !void {
     var args = try std.process.ArgIterator.initWithAllocator(alloc);
     defer args.deinit();
     const progname = args.next().?;
-    var zquery: ?[:0]const u8 = null;
-    var zsource: [:0]const u8 = undefined;
-    var nargs: u8 = 0;
+
+    var zquery: ?[:0]const u8 = null; // identifier name to search for
+    var zsource: [:0]const u8 = undefined; // std.xxx or an fs path
+    const opts = struct { // cmd line options with defaults
+        var sub: bool = false; // -s substr option
+    };
+
+    var nargs: u8 = 0; // excluding opts
     while (args.next()) |a| {
+        if (std.mem.eql(u8, a, "-s")) {
+            opts.sub = true;
+            continue;
+        }
         switch (nargs) {
             0 => {
                 zsource = a;
@@ -47,7 +56,11 @@ pub fn main() !void {
     const ais = &auto_indenting_stream;
 
     // run the search, one file at a time
-    var query: ?[]const u8 = if (zquery) |q| q[0..] else null;
+    var query: ?analyze.Query = null;
+    if (zquery) |q| switch (opts.sub) {
+        true => query = .{ .sub = q[0..] },
+        false => query = .{ .exact = q[0..] },
+    };
     const list = try expandSourcePath(alloc, zsource);
     for (list.items) |src| {
         // todo: consider replacing arena with something else to dealloc already
@@ -59,11 +72,12 @@ pub fn main() !void {
 
 fn usage(prog: []const u8) !void {
     try stderr.print(
-        \\usage: {s} [source] <identifier>
+        \\usage: {s} [-s] [source] <identifier>
         \\
         \\the program searches source code for matching public identifiers,
         \\printing found types and their doc comments to stdout.
         \\the search is case-insensitive and non-exhaustive.
+        \\if -s option is specified, any identifier substring matches.
         \\
         \\for example, look up format function in std lib:
         \\

@@ -2,11 +2,17 @@ const std = @import("std");
 const output = @import("output.zig");
 const Ast = std.zig.Ast;
 
+/// Query specifies the kind of identifier matching to look for when search'ing.
+pub const Query = union(enum) {
+    exact: []const u8, // exact match, case-insensitive
+    sub: []const u8, // substring match, case-insensitive
+};
+
 /// search parses the source code into std.zig.Ast and walks over top level declarations,
 /// optionally matching against the query.
 ///
 /// results are printed using ais.
-pub fn search(alloc: std.mem.Allocator, ais: *output.Ais, source: [:0]const u8, query: ?[]const u8) !void {
+pub fn search(alloc: std.mem.Allocator, ais: *output.Ais, source: [:0]const u8, query: ?Query) !void {
     var tree = try std.zig.parse(alloc, source);
     defer tree.deinit(alloc);
     var insert_newline = false;
@@ -51,8 +57,14 @@ pub fn isPublic(tree: Ast, decl: Ast.Node.Index) bool {
 }
 
 /// reports whether the given name matches decl identifier, case-insensitive.
-pub fn identifierMatch(tree: Ast, decl: Ast.Node.Index, name: []const u8) bool {
-    return if (identifier(tree, decl)) |ident| std.ascii.eqlIgnoreCase(name, ident) else false;
+pub fn identifierMatch(tree: Ast, decl: Ast.Node.Index, name: Query) bool {
+    if (identifier(tree, decl)) |id| {
+        switch (name) {
+            .exact => |exact| return std.ascii.eqlIgnoreCase(id, exact),
+            .sub => |sub| return std.ascii.indexOfIgnoreCase(id, sub) != null,
+        }
+    }
+    return false;
 }
 
 /// identifier returns node's identifier, if any.
@@ -96,14 +108,14 @@ fn identifier(tree: Ast, node: Ast.Node.Index) ?[]const u8 {
     return null;
 }
 
-test "identifier matches" {
+test "identifier exact match" {
     const alloc = std.testing.allocator;
     const print = std.debug.print;
 
     const src =
         \\const foo: u32 = 1;
         \\pub const bar: i32 = 2;
-        \\pub const baz = struct { z: u32 };
+        \\pub const Baz = struct { z: u32 };
         \\fn quix() void { }
     ;
     const tt = [_]struct { name: []const u8 }{
@@ -116,15 +128,45 @@ test "identifier matches" {
     defer tree.deinit(alloc);
     for (tree.rootDecls()) |decl, i| {
         const tc = tt[i];
-        if (!identifierMatch(tree, decl, tc.name)) {
+        const exact = Query{ .exact = tc.name };
+        if (!identifierMatch(tree, decl, exact)) {
             const id = identifier(tree, decl);
             print("{d}: identifierMatch({s}): false; identifier({d}): {?s}\n", .{ i, tc.name, decl, id });
-            return error.NoMatch;
+            return error.NoExactMatch;
         }
     }
 }
 
-test "no identifier match" {
+test "identifier sub match" {
+    const alloc = std.testing.allocator;
+    const print = std.debug.print;
+
+    const src =
+        \\const foo: u32 = 1;
+        \\pub const bar: i32 = 2;
+        \\pub const Baz = struct { z: u32 };
+        \\fn quix() void { }
+    ;
+    const tt = [_]struct { name: []const u8 }{
+        .{ .name = "fo" },
+        .{ .name = "ar" },
+        .{ .name = "baz" },
+        .{ .name = "UI" },
+    };
+    var tree = try std.zig.parse(alloc, src);
+    defer tree.deinit(alloc);
+    for (tree.rootDecls()) |decl, i| {
+        const tc = tt[i];
+        const sub = Query{ .sub = tc.name };
+        if (!identifierMatch(tree, decl, sub)) {
+            const id = identifier(tree, decl);
+            print("{d}: identifierMatch({s}): false; identifier({d}): {?s}\n", .{ i, tc.name, decl, id });
+            return error.NoSubMatch;
+        }
+    }
+}
+
+test "no identifier exact match" {
     const alloc = std.testing.allocator;
     const print = std.debug.print;
 
@@ -134,14 +176,37 @@ test "no identifier match" {
         \\pub const baz = struct { z: u32 };
         \\fn quix() void { }
     ;
-    const z = "z";
     var tree = try std.zig.parse(alloc, src);
     defer tree.deinit(alloc);
+
+    const z = Query{ .exact = "z" };
     for (tree.rootDecls()) |decl, i| {
         if (identifierMatch(tree, decl, z)) {
             const id = identifier(tree, decl);
-            print("{d}: identifierMatch({s}): true; identifier({d}): {?s}\n", .{ i, z, decl, id });
-            return error.Match;
+            print("{d}: identifierMatch({s}): true; identifier({d}): {?s}\n", .{ i, z.exact, decl, id });
+            return error.ExactMatch;
+        }
+    }
+}
+
+test "no identifier sub match" {
+    const alloc = std.testing.allocator;
+    const print = std.debug.print;
+
+    const src =
+        \\const foo: u32 = 1;
+        \\pub const bar: i32 = 2;
+        \\fn quix() void { }
+    ;
+    var tree = try std.zig.parse(alloc, src);
+    defer tree.deinit(alloc);
+
+    const z = Query{ .sub = "z" };
+    for (tree.rootDecls()) |decl, i| {
+        if (identifierMatch(tree, decl, z)) {
+            const id = identifier(tree, decl);
+            print("{d}: identifierMatch({s}): true; identifier({d}): {?s}\n", .{ i, z.sub, decl, id });
+            return error.SubMatch;
         }
     }
 }

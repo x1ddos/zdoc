@@ -2,11 +2,12 @@
 
 usage:
 
-    zdoc [source] <identifier>
+    zdoc [-s] [source] <identifier>
 
 the program searches source code for matching public identifiers,
 printing found types and their doc comments to stdout.
 the search is case-insensitive and non-exhaustive.
+if -s option is specified, any identifier substring matches.
 
 for example, look up format function in std lib:
 
