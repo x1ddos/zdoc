@@ -42,7 +42,7 @@ pub fn main() !void {
     // output all results to stdout
     var auto_indenting_stream = output.Ais{
         .indent_delta = 4,
-        .underlying_writer = stdout,
+        .underlying_writer = output.TypeErasedWriter.init(&stdout),
     };
     const ais = &auto_indenting_stream;
 

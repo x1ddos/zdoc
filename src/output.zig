@@ -2,7 +2,7 @@
 //! in fact, most of it is a copy of the original with just a few modifications:
 //! - rename renderMember to renderPubMember to emphasize this is about public types only
 //! - commented out unused code; it needs not render type definitions
-//! - AutoIdentingStream outputs directly to a File.Writer; return anyerror
+//! - AutoIndentingStream outputs to a type-independent writer; returns anyerror
 //! instead of Ast.RenderError
 
 const std = @import("std");
@@ -15,8 +15,8 @@ const Ast = std.zig.Ast;
 
 const log = std.log.scoped(.render);
 
-/// Ais is an AutoIdentingStream suitable for writing directly to stdout or stderr.
-pub const Ais = AutoIndentingStream(std.fs.File.Writer);
+/// Ais is writer type-independent AutoIndentingStream used by all renderXxx funcs.
+pub const Ais = AutoIndentingStream(TypeErasedWriter.Writer);
 
 /// renderPubMember prints the given declaration using ais.
 /// it outputs anything only if the declaration is public.
@@ -2497,7 +2497,7 @@ fn hasSameLineComment(tree: Ast, token_index: Ast.TokenIndex) bool {
 //    return false;
 //}
 
-fn writeFixingWhitespace(writer: std.fs.File.Writer, slice: []const u8) anyerror!void {
+fn writeFixingWhitespace(writer: TypeErasedWriter.Writer, slice: []const u8) anyerror!void {
     for (slice) |byte| switch (byte) {
         '\t' => try writer.writeAll(" " ** 4),
         '\r' => {},
@@ -2761,3 +2761,59 @@ fn AutoIndentingStream(comptime UnderlyingWriter: type) type {
         }
     };
 }
+
+/// TypeErasedWriter abstracts a writer type away so that functions can
+/// can be more relaxed, without requiring a comptime writer.
+///
+/// example usage with a file writer:
+///
+///     const stdio = std.io.getStdOut().writer();
+///     var writer = TypeEraseWrite.init(&stdio);
+///
+/// with an array buffer:
+///
+///     var buf = std.ArrayList(u8).init(allocator);
+///     var writer = TypeEraseWrite.init(&buf.writer());
+///
+/// its std io type is TypeErasedWriter.Writer.
+pub const TypeErasedWriter = struct {
+    /// a @ptrToInt-cast address to the baseWriter provided during init.
+    writerAddr: usize,
+    /// contains write func implementation which invokes baseWriter at writerAddr.
+    vtable: *const VTable,
+
+    /// Writer is the standard io writer type of TypeErasedWriter.
+    pub const Writer = std.io.Writer(@This(), WriteError, write);
+    const WriteError = anyerror;
+
+    const VTable = struct {
+        writeFn: fn (usize, []const u8) WriteError!usize,
+    };
+
+    /// pointer is expected to be of an std.io.Writer type.
+    /// see TypeErasedWriter for usage examples.
+    pub fn init(baseWriter: anytype) Writer {
+        const PtrType = @TypeOf(baseWriter);
+        const ptrinfo = @typeInfo(PtrType);
+        std.debug.assert(ptrinfo == .Pointer);
+        std.debug.assert(ptrinfo.Pointer.size == .One); // single-item pointer
+
+        const gen = struct {
+            fn writeImpl(writerAddr: usize, bytes: []const u8) WriteError!usize {
+                const w = @intToPtr(PtrType, writerAddr);
+                return w.write(bytes);
+            }
+            const vtable = VTable{ .writeFn = writeImpl };
+        };
+        return .{
+            .context = TypeErasedWriter{
+                .writerAddr = @ptrToInt(baseWriter),
+                .vtable = &gen.vtable,
+            },
+        };
+    }
+
+    fn write(self: @This(), bytes: []const u8) WriteError!usize {
+        return self.vtable.writeFn(self.writerAddr, bytes);
+    }
+};
