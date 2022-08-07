@@ -25,7 +25,7 @@ pub fn main() !void {
         var sub: bool = false; // -s substr option
     };
 
-    var nargs: u8 = 0; // excluding opts
+    var nargs: u8 = 0; // positional only, aka excluding opts
     while (args.next()) |a| {
         if (std.mem.eql(u8, a, "-s")) {
             opts.sub = true;
@@ -43,7 +43,7 @@ pub fn main() !void {
             else => fatal("too many args", .{}),
         }
     }
-    if (nargs == 0) { // expected 1 or 2 args
+    if (nargs == 0) { // expected 1 or 2 positional args
         usage(progname) catch {};
         return;
     }
@@ -55,12 +55,18 @@ pub fn main() !void {
     };
     const ais = &auto_indenting_stream;
 
-    // run the search, one file at a time
-    var query: ?analyze.Query = null;
+    // null query always results in a none/all qualifiers:
+    // the logic is, -s flag implies a substring but identifiers are non-empty,
+    // so .none query makes most sense. see analyze.search for details.
+    var query: analyze.Query = undefined;
     if (zquery) |q| switch (opts.sub) {
         true => query = .{ .sub = q[0..] },
         false => query = .{ .exact = q[0..] },
-    };
+    } else switch (opts.sub) {
+        true => query = .none,
+        false => query = .all,
+    }
+    // run the search, one file at a time
     const list = try expandSourcePath(alloc, zsource);
     for (list.items) |src| {
         // no need to print the filename under search if there's only one.
@@ -81,7 +87,10 @@ fn usage(prog: []const u8) !void {
         \\the program searches source code for matching public identifiers,
         \\printing found types and their doc comments to stdout.
         \\the search is case-insensitive and non-exhaustive.
+        \\
         \\if -s option is specified, any identifier substring matches.
+        \\as a side effect, the -s with no identifier arg results in
+        \\printing out only top level doc comments.
         \\
         \\for example, look up "hello" identifier in a project file:
         \\

@@ -7,7 +7,10 @@ usage:
 the program searches source code for matching public identifiers,
 printing found types and their doc comments to stdout.
 the search is case-insensitive and non-exhaustive.
+
 if -s option is specified, any identifier substring matches.
+as a side effect, the -s with no identifier arg results in
+printing out only top level doc comments.
 
 for example, look up "hello" identifier in a project file:
 

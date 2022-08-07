@@ -4,26 +4,29 @@ const Ast = std.zig.Ast;
 
 /// Query specifies the kind of identifier matching to look for when search'ing.
 pub const Query = union(enum) {
+    none, // never match
+    all, // always match
     exact: []const u8, // exact match, case-insensitive
     sub: []const u8, // substring match, case-insensitive
 };
 
-/// search parses the source code into std.zig.Ast and walks over top level declarations,
-/// optionally matching against the query.
+/// search parses the source code into std.zig.Ast, walks over top level declarations
+/// optionally matching against the query, and prints results using ais.
 ///
-/// results are printed using ais.
-pub fn search(alloc: std.mem.Allocator, ais: *output.Ais, source: [:0]const u8, query: ?Query) !void {
+/// a .none query matches no identifier; what's left is top level doc comments.
+pub fn search(alloc: std.mem.Allocator, ais: *output.Ais, source: [:0]const u8, query: Query) !void {
     var tree = try std.zig.parse(alloc, source);
     defer tree.deinit(alloc);
 
-    try output.renderTopLevelDocComments(ais, tree);
+    // the assumption is top level doc comments are of litte to no interest
+    // if an exact/sub query is specified.
+    if (query == .none or query == .all) {
+        try output.renderTopLevelDocComments(ais, tree);
+    }
 
     var insert_newline = false;
     for (tree.rootDecls()) |decl| {
-        if (!isPublic(tree, decl)) {
-            continue;
-        }
-        if (query != null and !identifierMatch(tree, decl, query.?)) {
+        if (!isPublic(tree, decl) or !identifierMatch(tree, decl, query)) {
             continue;
         }
         if (insert_newline) {
@@ -93,14 +96,19 @@ pub fn isPublic(tree: Ast, decl: Ast.Node.Index) bool {
 }
 
 /// reports whether the given name matches decl identifier, case-insensitive.
-pub fn identifierMatch(tree: Ast, decl: Ast.Node.Index, name: Query) bool {
-    if (identifier(tree, decl)) |id| {
-        switch (name) {
-            .exact => |exact| return std.ascii.eqlIgnoreCase(id, exact),
-            .sub => |sub| return std.ascii.indexOfIgnoreCase(id, sub) != null,
-        }
-    }
-    return false;
+pub fn identifierMatch(tree: Ast, decl: Ast.Node.Index, q: Query) bool {
+    return switch (q) {
+        .none => false,
+        .all => true,
+        .exact => |qexact| exact: {
+            const id = identifier(tree, decl);
+            break :exact id != null and std.ascii.eqlIgnoreCase(id.?, qexact);
+        },
+        .sub => |qsub| sub: {
+            const id = identifier(tree, decl);
+            break :sub id != null and std.ascii.indexOfIgnoreCase(id.?, qsub) != null;
+        },
+    };
 }
 
 /// identifier returns node's identifier, if any.
