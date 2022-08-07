@@ -37,6 +37,9 @@ list all expectXxx functions from the testing module:
 as a special case, if the source is exactly `std` and no such file
 or directory exists, zdoc searches across the whole zig std lib.
 
+zdoc outputs results in a basic colored format unless `NO_COLOR`
+env variable is set or `--nocolor` flag is seen on command line.
+
 ---
 
 to contribute, create a pull request or send a patch with

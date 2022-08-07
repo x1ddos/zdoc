@@ -23,11 +23,13 @@ pub const Ais = AutoIndentingStream(TypeErasedWriter.Writer);
 
 // outputs all the line comments at the beginning of the tree.
 pub fn renderTopLevelDocComments(ais: *Ais, tree: Ast) !void {
+    ais.colorComments();
     const comment_end_loc = tree.tokens.items(.start)[0];
     _ = try renderComments(ais, tree, 0, comment_end_loc);
     if (tree.tokens.items(.tag)[0] == .container_doc_comment) {
         try renderContainerDocComments(ais, tree, 0);
     }
+    ais.colorReset();
 }
 
 /// renderPubMember prints the given declaration using ais.
@@ -897,7 +899,9 @@ fn renderVarDecl(gpa: Allocator, ais: *Ais, tree: Ast, var_decl: Ast.full.VarDec
         Space.space
     else
         Space.none;
+    ais.colorIdentifier();
     try renderToken(ais, tree, var_decl.ast.mut_token + 1, name_space); // name
+    ais.colorReset();
 
     if (var_decl.ast.type_node != 0) {
         try renderToken(ais, tree, var_decl.ast.mut_token + 2, Space.space); // :
@@ -1105,10 +1109,14 @@ fn renderContainerField(
         try renderToken(ais, tree, t, .space); // comptime
     }
     if (field.ast.type_expr == 0 and field.ast.value_expr == 0) {
+        ais.colorIdentifier();
+        defer ais.colorReset();
         return renderTokenComma(ais, tree, field.ast.name_token, space); // name
     }
     if (field.ast.type_expr != 0 and field.ast.value_expr == 0) {
+        ais.colorIdentifier();
         try renderToken(ais, tree, field.ast.name_token, .none); // name
+        ais.colorReset();
         try renderToken(ais, tree, field.ast.name_token + 1, .space); // :
 
         if (field.ast.align_expr != 0) {
@@ -1124,12 +1132,16 @@ fn renderContainerField(
         }
     }
     if (field.ast.type_expr == 0 and field.ast.value_expr != 0) {
+        ais.colorIdentifier();
         try renderToken(ais, tree, field.ast.name_token, .space); // name
+        ais.colorReset();
         try renderToken(ais, tree, field.ast.name_token + 1, .space); // =
         return renderExpressionComma(gpa, ais, tree, field.ast.value_expr, space); // value
     }
 
+    ais.colorIdentifier();
     try renderToken(ais, tree, field.ast.name_token, .none); // name
+    ais.colorReset();
     try renderToken(ais, tree, field.ast.name_token + 1, .space); // :
     try renderExpression(gpa, ais, tree, field.ast.type_expr, .space); // type
 
@@ -1228,7 +1240,9 @@ fn renderFnProto(gpa: Allocator, ais: *Ais, tree: Ast, fn_proto: Ast.full.FnProt
     const after_fn_token = fn_proto.ast.fn_token + 1;
     const lparen = if (token_tags[after_fn_token] == .identifier) blk: {
         try renderToken(ais, tree, fn_proto.ast.fn_token, .space); // fn
+        ais.colorIdentifier();
         try renderToken(ais, tree, after_fn_token, .none); // name
+        ais.colorReset();
         break :blk after_fn_token + 1;
     } else blk: {
         try renderToken(ais, tree, fn_proto.ast.fn_token, .space); // fn
@@ -2436,18 +2450,22 @@ fn renderDocComments(ais: *Ais, tree: Ast, end_token: Ast.TokenIndex) anyerror!v
         }
     }
 
+    ais.colorComments();
     while (token_tags[tok] == .doc_comment) : (tok += 1) {
         try renderToken(ais, tree, tok, .newline);
     }
+    ais.colorReset();
 }
 
 /// start_token is first container doc comment token.
 fn renderContainerDocComments(ais: *Ais, tree: Ast, start_token: Ast.TokenIndex) !void {
     const token_tags = tree.tokens.items(.tag);
     var tok = start_token;
+    ais.colorComments();
     while (token_tags[tok] == .container_doc_comment) : (tok += 1) {
         try renderToken(ais, tree, tok, .newline);
     }
+    ais.colorReset();
     // Render extra newline if there is one between final container doc comment and
     // the next token. If the next token is a doc comment, that code path
     // will have its own logic to insert a newline.
@@ -2621,6 +2639,7 @@ fn AutoIndentingStream(comptime UnderlyingWriter: type) type {
         pub const Writer = std.io.Writer(*Self, WriteError, write);
 
         underlying_writer: UnderlyingWriter,
+        ttyconf: std.debug.TTY.Config = .no_color,
 
         /// Offset into the source at which formatting has been disabled with
         /// a `zig fmt: off` comment.
@@ -2646,6 +2665,18 @@ fn AutoIndentingStream(comptime UnderlyingWriter: type) type {
         /// the ield is reset to null once printed out.
         /// use setSearchFile to set a new name before starting a search.
         search_file: ?[]const u8 = null,
+
+        fn colorIdentifier(self: *Self) void {
+            self.ttyconf.setColor(self.underlying_writer, .Bold);
+        }
+
+        fn colorComments(self: *Self) void {
+            self.ttyconf.setColor(self.underlying_writer, .Dim);
+        }
+
+        fn colorReset(self: *Self) void {
+            self.ttyconf.setColor(self.underlying_writer, .Reset);
+        }
 
         pub fn writer(self: *Self) Writer {
             return .{ .context = self };

@@ -2,6 +2,7 @@
 //! the results to stdout. see usage for details.
 
 const std = @import("std");
+const builtin = @import("builtin");
 
 const analyze = @import("analyze.zig");
 const output = @import("output.zig");
@@ -23,12 +24,17 @@ pub fn main() !void {
     var zsource: [:0]const u8 = undefined; // std.xxx or an fs path
     const opts = struct { // cmd line options with defaults
         var sub: bool = false; // -s substr option
+        var color: bool = true; // --nocolor sets to false
     };
 
     var nargs: u8 = 0; // positional only, aka excluding opts
     while (args.next()) |a| {
         if (std.mem.eql(u8, a, "-s")) {
             opts.sub = true;
+            continue;
+        }
+        if (std.mem.eql(u8, a, "--nocolor")) {
+            opts.color = false;
             continue;
         }
         switch (nargs) {
@@ -52,6 +58,7 @@ pub fn main() !void {
     var auto_indenting_stream = output.Ais{
         .indent_delta = output.indent_delta,
         .underlying_writer = output.TypeErasedWriter.init(&stdout),
+        .ttyconf = if (opts.color) detectTTY(std.io.getStdOut()) else .no_color,
     };
     const ais = &auto_indenting_stream;
 
@@ -116,6 +123,9 @@ fn usage(prog: []const u8) !void {
         \\
         \\as a special case, if the source is exactly "std" and no such file
         \\or directory exists, zdoc searches across the whole zig std lib.
+        \\
+        \\zdoc outputs results in a basic colored format unless NO_COLOR
+        \\env variable is set or --nocolor flag is seen on command line.
         \\
     , .{prog});
 }
@@ -220,6 +230,18 @@ fn zigStdPath(alloc: std.mem.Allocator) ![]const u8 {
     var jenv = try std.json.parse(Env, &std.json.TokenStream.init(res.stdout), opt);
     defer std.json.parseFree(Env, jenv, opt);
     return alloc.dupe(u8, jenv.std_dir);
+}
+
+fn detectTTY(out: anytype) std.debug.TTY.Config {
+    if (std.process.hasEnvVarConstant("NO_COLOR")) {
+        return .no_color;
+    } else if (out.supportsAnsiEscapeCodes()) {
+        return .escape_codes;
+    } else if (builtin.os.tag == .windows and out.isTty()) {
+        return .windows_api;
+    } else {
+        return .no_color;
+    }
 }
 
 test {
