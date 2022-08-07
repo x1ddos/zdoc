@@ -21,6 +21,15 @@ pub const indent_delta = 4;
 /// Ais is writer type-independent AutoIndentingStream used by all renderXxx funcs.
 pub const Ais = AutoIndentingStream(TypeErasedWriter.Writer);
 
+// outputs all the line comments at the beginning of the tree.
+pub fn renderTopLevelDocComments(ais: *Ais, tree: Ast) !void {
+    const comment_end_loc = tree.tokens.items(.start)[0];
+    _ = try renderComments(ais, tree, 0, comment_end_loc);
+    if (tree.tokens.items(.tag)[0] == .container_doc_comment) {
+        try renderContainerDocComments(ais, tree, 0);
+    }
+}
+
 /// renderPubMember prints the given declaration using ais.
 /// it outputs anything only if the declaration is public.
 pub fn renderPubMember(gpa: Allocator, ais: *Ais, tree: Ast, decl: Ast.Node.Index, space: Space) !void {

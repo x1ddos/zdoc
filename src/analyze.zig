@@ -15,6 +15,9 @@ pub const Query = union(enum) {
 pub fn search(alloc: std.mem.Allocator, ais: *output.Ais, source: [:0]const u8, query: ?Query) !void {
     var tree = try std.zig.parse(alloc, source);
     defer tree.deinit(alloc);
+
+    try output.renderTopLevelDocComments(ais, tree);
+
     var insert_newline = false;
     for (tree.rootDecls()) |decl| {
         if (!isPublic(tree, decl)) {
