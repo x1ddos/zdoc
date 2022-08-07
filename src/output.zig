@@ -33,11 +33,12 @@ pub fn renderTopLevelDocComments(ais: *Ais, tree: Ast) !void {
 /// renderPubMember prints the given declaration using ais.
 /// it outputs anything only if the declaration is public.
 pub fn renderPubMember(gpa: Allocator, ais: *Ais, tree: Ast, decl: Ast.Node.Index, space: Space) !void {
-    _ = space;
-
     const token_tags = tree.tokens.items(.tag);
     const main_tokens = tree.nodes.items(.main_token);
     const datas = tree.nodes.items(.data);
+    if (!analyze.isPublic(tree, decl)) {
+        return;
+    }
     switch (tree.nodes.items(.tag)[decl]) {
         .fn_proto_simple,
         .fn_proto_multi,
@@ -45,7 +46,6 @@ pub fn renderPubMember(gpa: Allocator, ais: *Ais, tree: Ast, decl: Ast.Node.Inde
         .fn_proto,
         .fn_decl,
         => {
-            var public = false;
             const fn_proto = datas[decl].lhs;
             const fn_token = main_tokens[decl];
             var i = fn_token;
@@ -55,10 +55,6 @@ pub fn renderPubMember(gpa: Allocator, ais: *Ais, tree: Ast, decl: Ast.Node.Inde
                     .keyword_extern,
                     .keyword_export,
                     .keyword_pub,
-                    => {
-                        public = true;
-                        continue;
-                    },
                     .string_literal,
                     .keyword_inline,
                     .keyword_noinline,
@@ -69,10 +65,6 @@ pub fn renderPubMember(gpa: Allocator, ais: *Ais, tree: Ast, decl: Ast.Node.Inde
                     },
                 }
             }
-            if (!public) {
-                //log.info("{} is not public", .{decl});
-                return;
-            }
             try renderDocComments(ais, tree, tree.firstToken(decl));
             while (i < fn_token) : (i += 1) {
                 try renderToken(ais, tree, i, .space);
@@ -80,26 +72,18 @@ pub fn renderPubMember(gpa: Allocator, ais: *Ais, tree: Ast, decl: Ast.Node.Inde
             // todo: render "inline" here, if any
             try renderExpression(gpa, ais, tree, fn_proto, .newline);
         },
-
         .@"usingnamespace" => {
             const mtok = main_tokens[decl];
-            // todo: move this to analyze.isPublic?
-            if (mtok > 0 and token_tags[mtok - 1] == .keyword_pub) {
-                try renderDocComments(ais, tree, tree.firstToken(decl));
-                try renderToken(ais, tree, mtok - 1, .space); // pub
-                try renderToken(ais, tree, mtok, .space); // usingnamespace
-                const expr = datas[decl].lhs;
-                try renderExpression(gpa, ais, tree, expr, .none);
-                try renderToken(ais, tree, tree.lastToken(expr) + 1, space); // ;
-            }
+            try renderDocComments(ais, tree, tree.firstToken(decl));
+            try renderToken(ais, tree, mtok - 1, .space); // pub
+            try renderToken(ais, tree, mtok, .space); // usingnamespace
+            const expr = datas[decl].lhs;
+            try renderExpression(gpa, ais, tree, expr, .none);
+            try renderToken(ais, tree, tree.lastToken(expr) + 1, space); // ;
         },
-
-        //.global_var_decl => return renderVarDecl(gpa, ais, tree, tree.globalVarDecl(decl)),
         .simple_var_decl => {
-            if (analyze.isPublic(tree, decl)) {
-                try renderDocComments(ais, tree, tree.firstToken(decl));
-                try renderVarDecl(gpa, ais, tree, tree.simpleVarDecl(decl));
-            }
+            try renderDocComments(ais, tree, tree.firstToken(decl));
+            try renderVarDecl(gpa, ais, tree, tree.simpleVarDecl(decl));
         },
         .container_field_init => {
             try renderDocComments(ais, tree, tree.firstToken(decl));
@@ -113,10 +97,6 @@ pub fn renderPubMember(gpa: Allocator, ais: *Ais, tree: Ast, decl: Ast.Node.Inde
             try renderDocComments(ais, tree, tree.firstToken(decl));
             try renderContainerField(gpa, ais, tree, tree.containerField(decl), space);
         },
-
-        .test_decl => return,
-
-        // todo: render other decl types
         else => |tag| {
             log.err("renderPubMember for {} unimplemented", .{tag});
         },

@@ -37,24 +37,57 @@ pub fn search(alloc: std.mem.Allocator, ais: *output.Ais, source: [:0]const u8, 
 /// reports whether the declaration is visible to other modules.
 pub fn isPublic(tree: Ast, decl: Ast.Node.Index) bool {
     const token_tags = tree.tokens.items(.tag);
-    var i = tree.nodes.items(.main_token)[decl];
-    while (i > 0) {
-        i -= 1;
-        switch (token_tags[i]) {
-            .keyword_export,
-            .keyword_pub,
-            => return true,
-
-            .keyword_extern,
-            .keyword_comptime,
-            .keyword_threadlocal,
-            .keyword_inline,
-            .keyword_noinline,
-            .string_literal,
-            => continue,
-
-            else => break,
-        }
+    switch (tree.nodes.items(.tag)[decl]) {
+        .fn_decl,
+        .fn_proto_simple,
+        .fn_proto_multi,
+        .fn_proto_one,
+        .fn_proto,
+        => {
+            var i = tree.nodes.items(.main_token)[decl];
+            while (i > 0) {
+                i -= 1;
+                switch (token_tags[i]) {
+                    .keyword_export,
+                    .keyword_pub,
+                    => return true,
+                    .keyword_extern,
+                    .string_literal,
+                    .keyword_inline,
+                    .keyword_noinline,
+                    => continue,
+                    else => break,
+                }
+            }
+        },
+        .@"usingnamespace" => {
+            const i = tree.nodes.items(.main_token)[decl];
+            return i > 0 and token_tags[i - 1] == .keyword_pub;
+        },
+        .simple_var_decl => {
+            var i = tree.nodes.items(.main_token)[decl];
+            while (i > 0) {
+                i -= 1;
+                // from tree.fullVarDecl
+                switch (token_tags[i]) {
+                    .keyword_export,
+                    .keyword_pub,
+                    => return true,
+                    .keyword_extern,
+                    .keyword_comptime,
+                    .keyword_threadlocal,
+                    .string_literal,
+                    => continue,
+                    else => break,
+                }
+            }
+        },
+        // container fields are always public
+        .container_field_init,
+        .container_field_align,
+        .container_field,
+        => return true,
+        else => return false,
     }
     return false;
 }
