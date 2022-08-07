@@ -86,7 +86,8 @@ fn usage(prog: []const u8) !void {
         \\
         \\the program searches source code for matching public identifiers,
         \\printing found types and their doc comments to stdout.
-        \\the search is case-insensitive and non-exhaustive.
+        \\the search is case-insensitive and non-exhaustive. no semantic
+        \\analysis is run.
         \\
         \\if -s option is specified, any identifier substring matches.
         \\as a side effect, the -s with no identifier arg results in
