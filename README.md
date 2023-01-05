@@ -40,7 +40,12 @@ or directory exists, zdoc searches across the whole zig std lib.
 zdoc outputs results in a basic colored format unless `NO_COLOR`
 env variable is set or `--nocolor` flag is seen on command line.
 
----
+### supported versions
+
+zdoc `master` branch requires zig v0.11. however, zdoc can be built with zig v0.10
+from the `0.10` branch.
+
+### contributing
 
 to contribute, create a pull request or send a patch with
 [git send-mail](https://git-scm.com/docs/git-send-email) to alex-dot-cloudware.io.

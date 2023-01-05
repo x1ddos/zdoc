@@ -32,7 +32,8 @@ pub fn search(alloc: std.mem.Allocator, ais: *output.Ais, source: [:0]const u8, 
         if (insert_newline) {
             try output.renderExtraNewline(ais, tree, decl);
         }
-        try output.renderPubMember(alloc, ais, tree, decl, .newline);
+        const is_tuple = isTuple(tree, decl);
+        try output.renderPubMember(alloc, ais, tree, decl, is_tuple, .newline);
         insert_newline = true;
     }
 }
@@ -95,8 +96,46 @@ pub fn isPublic(tree: Ast, decl: Ast.Node.Index) bool {
     return false;
 }
 
+/// reports whether the given node is a tuple-like.
+fn isTuple(tree: Ast, node: Ast.Node.Index) bool {
+    const node_tags = tree.nodes.items(.tag);
+    const container = blk: {
+        switch (node_tags[node]) {
+            .container_decl,
+            .container_decl_trailing,
+            => break :blk tree.containerDecl(node),
+            .container_decl_two,
+            .container_decl_two_trailing,
+            => {
+                var buffer: [2]Ast.Node.Index = undefined;
+                break :blk tree.containerDeclTwo(&buffer, node);
+            },
+            .container_decl_arg,
+            .container_decl_arg_trailing,
+            => break :blk tree.containerDeclArg(node),
+            else => return false,
+        }
+    };
+    const tag = tree.tokens.items(.tag)[container.ast.main_token];
+    if (tag != .keyword_struct) {
+        return false;
+    }
+    for (container.ast.members) |m| {
+        const tuple_like = switch (node_tags[m]) {
+            .container_field_init => tree.containerFieldInit(m).ast.tuple_like,
+            .container_field_align => tree.containerFieldAlign(m).ast.tuple_like,
+            .container_field => tree.containerField(m).ast.tuple_like,
+            else => continue,
+        };
+        if (!tuple_like) {
+            return false;
+        }
+    }
+    return true;
+}
+
 /// reports whether the given name matches decl identifier, case-insensitive.
-pub fn identifierMatch(tree: Ast, decl: Ast.Node.Index, q: Query) bool {
+fn identifierMatch(tree: Ast, decl: Ast.Node.Index, q: Query) bool {
     return switch (q) {
         .none => false,
         .all => true,
@@ -251,6 +290,40 @@ test "no identifier sub match" {
             const id = identifier(tree, decl);
             print("{d}: identifierMatch({s}): true; identifier({d}): {?s}\n", .{ i, z.sub, decl, id });
             return error.SubMatch;
+        }
+    }
+}
+
+test "isTupleLikeDecl" {
+    const alloc = std.testing.allocator;
+    const print = std.debug.print;
+
+    const src =
+        \\const Foo = struct{ i32, u32 };
+        \\const Bar = struct{ a: i32, b: u32 };
+        \\const baz: u32 = 1;
+        \\var quix1 = .{"quix"};
+        \\var quix2: []const u8 = "quix";
+    ;
+    const tt = [_]struct { is_tuple: bool }{
+        .{ .is_tuple = true }, // Foo
+        .{ .is_tuple = false }, // Bar
+        .{ .is_tuple = false }, // baz
+        .{ .is_tuple = false }, // quix1
+        .{ .is_tuple = false }, // quix2
+    };
+
+    var tree = try std.zig.parse(alloc, src);
+    defer tree.deinit(alloc);
+    for (tree.rootDecls()) |root_node, i| {
+        const tc = tt[i];
+
+        const decl = tree.simpleVarDecl(root_node);
+        const res = isTuple(tree, decl.ast.init_node);
+        if (res != tc.is_tuple) {
+            const id = identifier(tree, root_node);
+            print("{d}: isTupleLikeDecl({?s}): {any}; want {any}\n", .{ i, id, res, tc.is_tuple });
+            return error.IsTupleLikeDecl;
         }
     }
 }
