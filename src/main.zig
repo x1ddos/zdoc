@@ -227,7 +227,8 @@ fn zigStdPath(alloc: std.mem.Allocator) ![]const u8 {
 
     const Env = struct { std_dir: []const u8 };
     const opt = .{ .allocator = alloc, .ignore_unknown_fields = true };
-    var jenv = try std.json.parse(Env, &std.json.TokenStream.init(res.stdout), opt);
+    var tokens = std.json.TokenStream.init(res.stdout);
+    var jenv = try std.json.parse(Env, &tokens, opt);
     defer std.json.parseFree(Env, jenv, opt);
     return alloc.dupe(u8, jenv.std_dir);
 }
