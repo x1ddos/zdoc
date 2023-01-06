@@ -2631,6 +2631,7 @@ fn AutoIndentingStream(comptime UnderlyingWriter: type) type {
 
         underlying_writer: UnderlyingWriter,
         ttyconf: std.debug.TTY.Config = .no_color,
+        ttycolor: std.debug.TTY.Color = .Reset, // last set tty color
 
         /// Offset into the source at which formatting has been disabled with
         /// a `zig fmt: off` comment.
@@ -2658,15 +2659,20 @@ fn AutoIndentingStream(comptime UnderlyingWriter: type) type {
         search_file: ?[]const u8 = null,
 
         fn colorIdentifier(self: *Self) void {
-            self.ttyconf.setColor(self.underlying_writer, .Bold) catch {};
+            self.setTTYColor(.Bold);
         }
 
         fn colorComments(self: *Self) void {
-            self.ttyconf.setColor(self.underlying_writer, .Dim) catch {};
+            self.setTTYColor(.Dim);
         }
 
         fn colorReset(self: *Self) void {
-            self.ttyconf.setColor(self.underlying_writer, .Reset) catch {};
+            self.setTTYColor(.Reset);
+        }
+
+        fn setTTYColor(self: *Self, c: std.debug.TTY.Color) void {
+            self.ttycolor = c;
+            self.ttyconf.setColor(self.underlying_writer, c) catch {};
         }
 
         pub fn writer(self: *Self) Writer {
@@ -2681,7 +2687,10 @@ fn AutoIndentingStream(comptime UnderlyingWriter: type) type {
                 const n = @min(name.len, 60);
                 const prefix = if (name.len > n) "..." else "";
                 const truncname = name[name.len - n .. name.len];
+                const orig_color = self.ttycolor;
+                self.colorComments();
                 try std.fmt.format(self.underlying_writer, "//--- file: {s}{s} ---\n", .{ prefix, truncname });
+                self.setTTYColor(orig_color);
                 self.search_file = null;
                 self.first_search_file = false;
             }
