@@ -27,10 +27,10 @@ pub fn renderTopLevelDocComments(ais: *Ais, tree: Ast) !void {
     ais.colorComments();
     const comment_end_loc = tree.tokens.items(.start)[0];
     _ = try renderComments(ais, tree, 0, comment_end_loc);
+    ais.colorReset();
     if (tree.tokens.items(.tag)[0] == .container_doc_comment) {
         try renderContainerDocComments(ais, tree, 0);
     }
-    ais.colorReset();
 }
 
 /// renderPubMember prints the given declaration using ais.
