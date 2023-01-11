@@ -515,8 +515,16 @@ fn renderExpression(gpa: Allocator, ais: *Ais, tree: Ast, node: Ast.Node.Index, 
                 while (i < rbrace) : (i += 1) {
                     if (i > lbrace + 1) try renderExtraNewlineToken(ais, tree, i);
                     switch (token_tags[i]) {
-                        .doc_comment => try renderToken(ais, tree, i, .newline),
-                        .identifier => try renderIdentifier(ais, tree, i, .comma, .eagerly_unquote),
+                        .doc_comment => {
+                            ais.colorComments();
+                            try renderToken(ais, tree, i, .newline);
+                            ais.colorReset();
+                        },
+                        .identifier => {
+                            ais.colorIdentifier();
+                            try renderIdentifier(ais, tree, i, .comma, .eagerly_unquote);
+                            ais.colorReset();
+                        },
                         .comma => {},
                         else => unreachable,
                     }
